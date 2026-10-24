@@ -1,0 +1,7 @@
+{
+  "name": "@lodestar/contracts",
+  "version": "1.0.0",
+  "private": true,
+  "types": "src/schema.d.ts",
+  "description": "OpenAPI document and generated TypeScript types for the Lodestar API. Regenerate with `make contracts`."
+}
