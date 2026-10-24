@@ -168,6 +168,14 @@ def add_member(body: MemberIn, ctx: Ctx = Depends(require("members:manage"))) ->
     if ctx.db.execute(select(Membership).where(Membership.tenant_id == ctx.tenant.id, Membership.user_id == user.id)).scalar_one_or_none():
         raise Conflict("Already a member.")
     ctx.db.add(Membership(tenant_id=ctx.tenant.id, user_id=user.id, role=body.role))
+    workspace_ids = list(body.workspace_ids)
+    if not workspace_ids:
+        if body.role == "client":
+            raise ValidationFailed("Client users must be assigned to at least one client workspace.")
+        default = ctx.db.execute(select(ClientWorkspace.id).where(ClientWorkspace.tenant_id == ctx.tenant.id,
+                                                                  ClientWorkspace.is_default.is_(True))).scalar_one_or_none()
+        workspace_ids = [default] if default else []
+    body.workspace_ids = workspace_ids
     for wid in body.workspace_ids:
         if ctx.db.get(ClientWorkspace, wid) is None:
             raise NotFound("Workspace not found")

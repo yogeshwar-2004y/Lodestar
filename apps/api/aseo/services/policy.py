@@ -82,7 +82,7 @@ class PolicyDecision:
 def risk(inp: PolicyInput) -> tuple[float, str]:
     score = BASE_RISK.get(inp.action_type, 0.7)
     if inp.is_homepage:
-        score += 0.15
+        score += 0.20  # highest-visibility page: conservative by default
     if inp.replaces_existing_value:
         score += 0.05
     if not inp.rollback_supported:

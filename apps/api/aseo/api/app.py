@@ -52,7 +52,7 @@ class RateLimiter:
                 if n == 1:
                     self._redis.expire(k, 70)
                 return n <= limit
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110 — Redis hiccup: fall back to in-process counters
                 pass
         with self._lock:
             self._mem[k] += 1

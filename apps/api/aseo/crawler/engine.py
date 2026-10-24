@@ -95,7 +95,7 @@ async def _load_sitemaps(cfg: CrawlConfig, robots: Robots | None, fetch: Fetcher
         seen.append(sm_norm)
         try:
             res = await fetch(sm_norm)
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S112 — unreachable sitemap is reported via missing_sitemap
             continue
         if res.status_code != 200:
             continue

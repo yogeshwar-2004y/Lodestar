@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     snapshot_dir: str = "var/snapshots"
 
     # --- secrets ------------------------------------------------------------
-    secret_key: str = "dev-insecure-change-me-dev-insecure-change-me"
+    secret_key: str = "dev-insecure-change-me-dev-insecure-change-me"  # noqa: S105 — refused in production
     # Fernet key used by the local encrypted secret store. Generate with
     # `python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"`.
     secrets_encryption_key: str | None = None
@@ -82,7 +82,7 @@ class Settings(BaseSettings):
     billing_provider: Literal["test", "stripe"] = "test"
     stripe_secret_key: str | None = None
     stripe_webhook_secret: str | None = None
-    test_billing_webhook_secret: str = "whsec_test_local_only"
+    test_billing_webhook_secret: str = "whsec_test_local_only"  # noqa: S105 — test-mode billing only
 
     # --- limits -------------------------------------------------------------
     rate_limit_per_minute: int = 240

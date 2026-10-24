@@ -15,7 +15,6 @@ from aseo.core.config import get_settings
 from aseo.core.errors import Conflict, ConnectorError, NotFound, ValidationFailed
 from aseo.core.security import constant_time_eq, new_token
 from aseo.crawler.netguard import BlockedDestination, safe_fetch
-from aseo.crawler.parse import extract_html
 from aseo.crawler.urls import InvalidURL, domain_from_input
 from aseo.models import AutomationSchedule, ClientWorkspace, Connector, Site, SiteVerification
 from aseo.models.base import utcnow
