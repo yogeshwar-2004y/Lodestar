@@ -1,0 +1,71 @@
+# Render Blueprint — demo/staging deployment of Lodestar.
+# Dashboard → New → Blueprint → select this repository. Free plans: services sleep when idle and the
+# free database expires after 30 days; switch plans for a pilot. Background jobs run in-process
+# (TASK_EXECUTION=inline); add a Redis + worker service for scale (see docs/operations/deployment.md).
+databases:
+  - name: lodestar-db
+    databaseName: lodestar
+    user: lodestar
+    plan: free
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: lodestar-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    healthCheckPath: /healthz
+    envVars:
+      - key: ENVIRONMENT
+        value: staging
+      - key: DEMO_MODE
+        value: "true"            # labelled fixtures; set false (and ENVIRONMENT=production) with real credentials
+      - key: DATABASE_URL
+        fromDatabase: { name: lodestar-db, property: connectionString }
+      - key: TASK_EXECUTION
+        value: inline
+      - key: SECRET_KEY
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: PUBLIC_WEB_URL
+        fromService: { type: web, name: lodestar-web, property: host }
+      - key: WP_FIXTURE_URL
+        fromService: { type: web, name: lodestar-wp-fixture, property: host }
+      - key: FIXTURE_CONTROL_TOKEN
+        fromService: { type: web, name: lodestar-wp-fixture, envVarKey: FIXTURE_CONTROL_TOKEN }
+      - key: SEED_DEMO
+        value: "true"
+      - key: CRAWLER_TIMEOUT_SECONDS
+        value: "60"              # free services can take ~50s to wake up
+      - key: SNAPSHOT_DIR
+        value: /app/var/snapshots
+      - key: AI_PROVIDER
+        value: deterministic     # set to "anthropic" and add ANTHROPIC_API_KEY to enable Claude
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+  - type: web
+    name: lodestar-web
+    runtime: docker
+    plan: free
+    dockerfilePath: ./apps/web/Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    envVars:
+      - key: API_INTERNAL_URL    # also passed as a Docker build arg (Next.js rewrites are fixed at build time)
+        fromService: { type: web, name: lodestar-api, property: host }
+
+  # WordPress companion-plugin TEST FIXTURE (not WordPress) for the labelled demo.
+  - type: web
+    name: lodestar-wp-fixture
+    runtime: docker
+    plan: free
+    dockerfilePath: ./integrations/wordpress/fixture_server/Dockerfile
+    dockerContext: ./integrations/wordpress/fixture_server
+    healthCheckPath: /robots.txt
+    envVars:
+      - key: FIXTURE_CONTROL_TOKEN
+        generateValue: true

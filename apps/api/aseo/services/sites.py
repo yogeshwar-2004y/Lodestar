@@ -174,8 +174,11 @@ def push_fixture_token(db: Session, site: Site) -> bool:
     if v is None or v.method != "connector" or v.status == "verified":
         return False
     try:
+        import os
+
         res = connector_svc.run(safe_fetch(site.base_url.rstrip("/") + "/__fixture/settings", method="POST",
-                                           json_body={"verification_token": v.token}, max_redirects=0, timeout=5))
+                                           json_body={"verification_token": v.token}, max_redirects=0, timeout=60,
+                                           headers={"X-Fixture-Token": os.environ.get("FIXTURE_CONTROL_TOKEN", "")}))
         return res.status_code == 200
     except (BlockedDestination, Exception):  # noqa: BLE001
         return False

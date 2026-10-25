@@ -34,6 +34,8 @@ demo go to the local **WordPress companion-plugin test fixture**, not a real web
 
 With Docker instead: `docker compose up --build`, then `docker compose exec api python -m aseo.seed`.
 
+Deploy a demo to Render with the `render.yaml` Blueprint — see [docs/operations/deployment.md](docs/operations/deployment.md#render-demo--staging).
+
 ## The core loop (M1)
 
 Register site → verify ownership → connect WordPress → crawl → *Missing meta description* →

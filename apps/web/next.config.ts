@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
-const API = process.env.API_INTERNAL_URL ?? "http://localhost:8400";
+const rawApi = process.env.API_INTERNAL_URL ?? "http://localhost:8400";
+// Accept a bare host (e.g. Render's fromService.host) and assume HTTPS.
+const API = rawApi.includes("://") ? rawApi : `https://${rawApi}`;
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,

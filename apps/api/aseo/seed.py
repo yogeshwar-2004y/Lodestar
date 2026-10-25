@@ -23,6 +23,8 @@ from aseo.services import sites as site_svc
 
 PASSWORD = "demo-password-123"  # noqa: S105 — demo fixture credential, demo mode only
 WP_URL = os.environ.get("WP_FIXTURE_URL", "http://127.0.0.1:8481")
+if "://" not in WP_URL:  # bare host from a PaaS service reference
+    WP_URL = f"https://{WP_URL}"
 
 
 def _user(db, email: str, name: str) -> tuple[User, bool]:

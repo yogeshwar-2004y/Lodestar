@@ -20,4 +20,4 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
 COPY --from=build /repo/apps/web ./
 USER node
 EXPOSE 3400
-CMD ["npx", "next", "start", "-p", "3400"]
+CMD ["sh", "-c", "npx next start -H 0.0.0.0 -p ${PORT:-3400}"]

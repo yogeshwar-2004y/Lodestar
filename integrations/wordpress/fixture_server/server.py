@@ -186,10 +186,20 @@ def history(request: Request, post_id: int):
 
 
 # ------------------------------------------------------------------ fixture control
+# When FIXTURE_CONTROL_TOKEN is set (public deployments), control endpoints require it.
+CONTROL_TOKEN = os.environ.get("FIXTURE_CONTROL_TOKEN", "")
+
+
+def control_denied(request: Request) -> JSONResponse | None:
+    if CONTROL_TOKEN and request.headers.get("x-fixture-token", "") != CONTROL_TOKEN:
+        return JSONResponse({"code": "forbidden"}, status_code=403)
+    return None
 
 
 @app.post("/__fixture/settings")
 async def fixture_settings(request: Request):
+    if (d := control_denied(request)) is not None:
+        return d
     body = await request.json()
     STATE["token"] = str(body.get("verification_token", ""))
     return {"ok": True}
@@ -197,6 +207,8 @@ async def fixture_settings(request: Request):
 
 @app.post("/__fixture/faults")
 async def fixture_faults(request: Request):
+    if (d := control_denied(request)) is not None:
+        return d
     body = await request.json()
     STATE["faults"] = {"status": body.get("status"), "count": int(body.get("count", 0)), "delay": float(body.get("delay", 0))}
     return {"ok": True}
@@ -204,6 +216,8 @@ async def fixture_faults(request: Request):
 
 @app.post("/__fixture/edit")
 async def fixture_edit(request: Request):
+    if (d := control_denied(request)) is not None:
+        return d
     body = await request.json()
     post = STATE["posts"][int(body["id"])]
     if "description" in body:
@@ -215,6 +229,8 @@ async def fixture_edit(request: Request):
 
 @app.post("/__fixture/cache")
 async def fixture_cache(request: Request):
+    if (d := control_denied(request)) is not None:
+        return d
     body = await request.json()
     STATE["cache_seconds"] = int(body.get("seconds", 0))
     STATE["cache"].clear()
@@ -222,13 +238,17 @@ async def fixture_cache(request: Request):
 
 
 @app.post("/__fixture/reset")
-def fixture_reset():
+def fixture_reset(request: Request):
+    if (d := control_denied(request)) is not None:
+        return d
     reset()
     return {"ok": True}
 
 
 @app.get("/__fixture/state")
-def fixture_state():
+def fixture_state(request: Request):
+    if (d := control_denied(request)) is not None:
+        return d
     return {"posts": STATE["posts"], "history": STATE["history"], "token_set": bool(STATE["token"])}
 
 
@@ -281,4 +301,6 @@ def page(request: Request, path: str):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("WP_FIXTURE_PORT", "8481")), log_level="warning")
+    port = int(os.environ.get("WP_FIXTURE_PORT") or os.environ.get("PORT") or "8481")
+    uvicorn.run(app, host=os.environ.get("WP_FIXTURE_HOST", "127.0.0.1"), port=port, log_level="warning", proxy_headers=True,
+                forwarded_allow_ips="*")

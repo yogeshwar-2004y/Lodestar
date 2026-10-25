@@ -89,6 +89,22 @@ class Settings(BaseSettings):
     auth_rate_limit_per_minute: int = 20
 
     @model_validator(mode="after")
+    def _normalize(self) -> Settings:
+        # Managed Postgres (e.g. Render) hands out postgres:// URLs; SQLAlchemy needs the driver.
+        for field in ("database_url", "database_app_url"):
+            value = getattr(self, field)
+            if value and value.startswith(("postgres://", "postgresql://")):
+                setattr(self, field, "postgresql+psycopg://" + value.split("://", 1)[1])
+        # Accept bare hosts (Render's `fromService.host`) for public URLs.
+        for field in ("public_web_url", "public_api_url"):
+            value = getattr(self, field)
+            if value and "://" not in value:
+                setattr(self, field, f"https://{value}")
+        if self.cors_origins == ["http://localhost:3400"] and "localhost" not in self.public_web_url:
+            self.cors_origins = [self.public_web_url]
+        return self
+
+    @model_validator(mode="after")
     def _production_guards(self) -> Settings:
         if self.environment == "production":
             if self.demo_mode:
