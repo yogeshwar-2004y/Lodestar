@@ -1,34 +1,97 @@
-# Lodestar — Agentic SEO SaaS (V1, in progress)
+# Lodestar — Agentic SEO operations
 
-Spec: `seo.pdf`. Status: **backend + M1 WordPress vertical slice implemented and tested; web UI not yet built.**
+Lodestar audits a website, explains every issue with evidence, drafts fixes, and ships them
+through WordPress, Shopify or GitHub **only after policy checks and approval** — then verifies the
+live page, keeps an immutable audit trail, and can roll the change back.
 
-## Run backend tests (local Postgres 16 + role)
+> Product name and brand tokens live in `apps/web/lib/brand.ts` and `PRODUCT_NAME` (API).
+> The spec this implements is `seo.pdf`. What is done, tested, needs credentials or is deferred:
+> **[docs/completion-matrix.md](docs/completion-matrix.md)**.
+
+## Quick start (local, no Docker, no paid credentials)
+
+Requirements: Python 3.12+, Node 22+, PostgreSQL 16+ running locally.
+
 ```bash
-psql -d postgres -f infra/db/init.sql && createdb aseo && createdb aseo_test
-cd apps/api && python3.13 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
-.venv/bin/python -m pytest          # 78 tests: unit, M1 end-to-end, safety/security
-.venv/bin/ruff check aseo tests migrations
+make setup          # Python venv + npm install
+make db             # create the runtime role aseo_app (RLS-enforced) and databases aseo, aseo_test
+cp .env.example apps/api/.env
+make migrate        # Alembic migrations (schema, RLS policies, append-only triggers)
+make dev            # WordPress test fixture :8481 + API :8400 + web :3400
+make seed           # in another terminal: demo users, demo site, first crawl, demo Search Console data
 ```
 
-## Run the API + WordPress fixture
+Open http://localhost:3400 and sign in:
+
+| User | Password | What it shows |
+|---|---|---|
+| `demo@lodestar.example` | `demo-password-123` | Owner of *Northwind Coffee (Demo)* — a WordPress **fixture** site, audited, with fixes awaiting approval |
+| `agency@lodestar.example` | `demo-password-123` | Agency owner with two client workspaces |
+| `client@lodestar.example` | `demo-password-123` | Client user restricted to one workspace |
+
+Demo mode is labelled everywhere (banner, "Fixture connector", "Demo data" badges). Writes in the
+demo go to the local **WordPress companion-plugin test fixture**, not a real website.
+
+With Docker instead: `docker compose up --build`, then `docker compose exec api python -m aseo.seed`.
+
+## The core loop (M1)
+
+Register site → verify ownership → connect WordPress → crawl → *Missing meta description* →
+Execution Agent drafts a patch (AI or deterministic) → validation + policy → approve the exact
+patch hash → execute → connector write → **re-read + live HTML verification** → before/after +
+audit trail → rollback restores the previous value.
+
+This loop is covered by `apps/api/tests/integration/test_m1_wordpress.py` (API) and
+`apps/web/e2e/m1-flow.spec.ts` (browser).
+
+## Tests
+
 ```bash
-cd apps/api && DATABASE_URL=postgresql+psycopg://localhost:5432/aseo .venv/bin/alembic upgrade head
-.venv/bin/python ../../integrations/wordpress/fixture_server/server.py &      # labelled TEST FIXTURE on :8481
-DATABASE_APP_URL=postgresql+psycopg://aseo_app:aseo_app_dev_password@localhost:5432/aseo \
-CRAWLER_ALLOWED_PRIVATE_HOSTS='["127.0.0.1:8481"]' .venv/bin/uvicorn aseo.main:app --port 8400
-# OpenAPI docs: http://localhost:8400/api/v1/docs
+make test        # 88 backend tests: unit, integration, security, failure injection (PostgreSQL required)
+make lint        # ruff + next lint
+make typecheck   # TypeScript
+make e2e         # Playwright against the running stack (uses installed Chrome; PW_CHANNEL=chromium for bundled)
+scripts/backup_restore_check.sh aseo      # backup/restore drill
+apps/api/.venv/bin/python scripts/loadtest.py   # read-path load test
 ```
 
-## Completion matrix
-| Area | State |
-|---|---|
-| Models (49 tables), Alembic, RLS, append-only/immutable triggers | implemented, tested |
-| Auth, orgs, RBAC, agency workspaces, CSRF, idempotency, rate limits | implemented, tested |
-| SSRF-safe crawler, robots, sitemaps, rule engine, health score | implemented, tested |
-| WordPress connector + companion plugin (`integrations/wordpress`) | implemented; tested against fixture; real site **requires credentials** |
-| Change sets: hash-bound approval, policy, execute, live verify, rollback, kill switch | implemented, tested |
-| AI gateway (Claude, deterministic fallback), 4 agents, copilot, workflows | implemented, tested (deterministic mode); LLM mode **requires ANTHROPIC_API_KEY** |
-| Credits ledger, test billing webhooks, PDF reports, content drafts | implemented, tested |
-| Typed TS contracts (`packages/contracts`) | generated |
-| Next.js UI (`apps/web`: deps installed, no pages yet) | **deferred — next step** |
-| Shopify / GitHub PR / Search Console connectors, Celery worker, Docker Compose, docs, E2E | **deferred** |
+## Real integrations
+
+| Integration | Guide | Needs |
+|---|---|---|
+| WordPress | [docs/setup/wordpress.md](docs/setup/wordpress.md) | companion plugin + application password |
+| Shopify | [docs/setup/shopify.md](docs/setup/shopify.md) | Admin API token or app credentials |
+| GitHub (pull requests) | [docs/setup/github.md](docs/setup/github.md) | GitHub App |
+| Google Search Console | [docs/setup/search-console.md](docs/setup/search-console.md) | OAuth client |
+| Claude (AI) | [docs/setup/ai.md](docs/setup/ai.md) | `ANTHROPIC_API_KEY` |
+| Billing | [docs/setup/billing.md](docs/setup/billing.md) | Stripe keys (test mode works without) |
+
+Production never falls back to fixtures: fixture connectors and demo mode are refused when
+`ENVIRONMENT=production`.
+
+## Repository layout
+
+```
+apps/api/            FastAPI app, SQLAlchemy models, Alembic migrations, services, agents, tests
+apps/worker/         Celery worker notes (worker code: apps/api/aseo/worker)
+apps/web/            Next.js App Router UI (Tailwind, Radix/shadcn-style components, Recharts, Framer Motion), Playwright E2E
+packages/contracts/  OpenAPI document + generated TypeScript types
+integrations/wordpress/  Companion plugin + REST-contract test fixture
+infra/db/            Runtime role bootstrap
+docs/                Architecture, ADRs, threat model, capability matrix, setup guides, runbooks, SLOs, pilot checklist
+scripts/             OpenAPI export, load test, backup/restore drill
+```
+
+## Documentation
+
+[Architecture](docs/architecture.md) · [ADRs](docs/adr) · [Threat model](docs/security/threat-model.md) ·
+[Connector capability matrix](docs/connectors/capability-matrix.md) · [Health score](docs/scoring.md) ·
+[API](docs/api.md) · [Runbooks](docs/operations/runbooks.md) · [Deployment](docs/operations/deployment.md) ·
+[SLOs & load test](docs/operations/slos-and-load-test.md) · [Pilot checklist](docs/pilot-checklist.md) ·
+[Completion matrix](docs/completion-matrix.md)
+
+## Honesty rules built into the product
+
+No guaranteed rankings; the health score is an internal diagnostic, not a Google metric; Search
+Console data is shown as delayed and incomplete with attribution caveats; search volume is never
+estimated; AI content is draft-only; demo data and fixture connectors are always labelled.

@@ -2926,7 +2926,7 @@
         "tags": [
           "operations"
         ],
-        "summary": "Plans",
+        "summary": "Active plans (public)",
         "operationId": "plans_api_v1_billing_plans_get",
         "responses": {
           "200": {
@@ -3423,6 +3423,116 @@
         }
       }
     },
+    "/api/v1/integrations/{provider}/authorize": {
+      "post": {
+        "tags": [
+          "integrations & webhooks"
+        ],
+        "summary": "Start a connector OAuth flow (state + PKCE)",
+        "operationId": "authorize_api_v1_integrations__provider__authorize_post",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider"
+            }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Site Id"
+            }
+          },
+          {
+            "name": "shop",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Shop"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Authorize Api V1 Integrations  Provider  Authorize Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/integrations/{provider}/callback": {
+      "get": {
+        "tags": [
+          "integrations & webhooks"
+        ],
+        "summary": "OAuth / installation callback",
+        "operationId": "callback_api_v1_integrations__provider__callback_get",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/webhooks/{provider}": {
       "post": {
         "tags": [
@@ -3800,6 +3910,18 @@
               }
             ],
             "title": "Rollback Note"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
           }
         },
         "type": "object",

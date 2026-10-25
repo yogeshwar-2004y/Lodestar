@@ -149,7 +149,24 @@ def scheduler_tick() -> int:
             log.warning("scheduled crawl skipped: %s", exc.message)
     if started:
         outbox.kick()
+    _maybe_run_retention()
     return started
+
+
+_last_retention: dict[str, Any] = {"day": None}
+
+
+def _maybe_run_retention() -> None:
+    today = utcnow().date()
+    if _last_retention["day"] == today:
+        return
+    from aseo.services import retention
+
+    try:
+        retention.run_daily()
+        _last_retention["day"] = today
+    except Exception:  # noqa: BLE001
+        log.exception("retention job failed")
 
 
 @outbox.handler("agents.post_crawl")
