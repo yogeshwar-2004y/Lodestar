@@ -615,7 +615,8 @@ def run_rollback(execution_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
         impl = get_connector(connector.provider)
         ctx = connector_svc.build_context(db, site, connector)
         patch = dict(pv.patch)
-        snapshot = {"previous_value": snap.previous_value, "resource_version": snap.resource_version}
+        snapshot = {"previous_value": snap.previous_value, "resource_version": snap.resource_version,
+                    "apply": applied.connector_result if applied else {}}
         lock_key = f"res:{site.id}:{patch['resource'].get('type')}:{patch['resource'].get('id')}"
         db.commit()
         try:

@@ -35,7 +35,7 @@ def get_engine() -> Engine:
         settings = get_settings()
         _engine = create_engine(settings.app_database_url, pool_pre_ping=True, pool_size=10, max_overflow=10,
                                 connect_args={"options": "-c timezone=utc"})
-        _SessionLocal = sessionmaker(bind=_engine, expire_on_commit=False, autoflush=False)
+        _SessionLocal = sessionmaker(bind=_engine, expire_on_commit=False, autoflush=True)
     return _engine
 
 

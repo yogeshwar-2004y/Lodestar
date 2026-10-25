@@ -7,9 +7,10 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from aseo.agents import agents
-from aseo.api.deps import Ctx, get_ctx, paginate, require
+from aseo.api.deps import Ctx, get_ctx, get_db, paginate, require
 from aseo.api.schemas import (
     AnnotationOut,
     AutomationPolicyIn,
@@ -202,9 +203,9 @@ def usage(ctx: Ctx = Depends(require("usage:read"))) -> dict[str, Any]:
     }
 
 
-@router.get("/billing/plans")
-def plans(ctx: Ctx = Depends(get_ctx)) -> list[dict[str, Any]]:
-    rows = ctx.db.execute(select(Plan).where(Plan.is_active.is_(True)).order_by(Plan.sort)).scalars()
+@router.get("/billing/plans", summary="Active plans (public)")
+def plans(db: Session = Depends(get_db)) -> list[dict[str, Any]]:
+    rows = db.execute(select(Plan).where(Plan.is_active.is_(True)).order_by(Plan.sort)).scalars()
     return [{"key": p.key, "name": p.name, "monthly_price_cents": p.monthly_price_cents, "currency": p.currency,
              "included_credits": p.included_credits, "max_sites": p.max_sites, "max_pages_per_crawl": p.max_pages_per_crawl,
              "max_workspaces": p.max_workspaces, "features": p.features} for p in rows]

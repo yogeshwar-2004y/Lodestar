@@ -384,6 +384,7 @@ class ChangeSetDetail(ChangeSetOut):
     connector: dict[str, Any] | None
     rollback_available: bool
     rollback_note: str | None
+    page: dict[str, Any] | None = None
 
 
 # ------------------------------------------------------------------ misc

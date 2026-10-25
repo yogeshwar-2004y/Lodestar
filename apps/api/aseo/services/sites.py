@@ -122,8 +122,11 @@ def check_verification(db: Session, site: Site, verification: SiteVerification) 
                 raise ValidationFailed("Connect the platform first, then check verification.")
             info = connector_svc.run(get_connector(connector.provider).verify_ownership(connector_svc.build_context(db, site, connector)))
             remote = str(info.get("verification_token") or "")
-            ok = bool(remote) and constant_time_eq(remote, verification.token)
-            evidence = {"connector": connector.provider, "mode": connector.mode, "token_present": bool(remote)}
+            token_ok = bool(remote) and constant_time_eq(remote, verification.token)
+            # Shopify/GitHub: an authorized platform credential whose primary domain matches the site
+            domain_ok = connector.provider in ("shopify", "github") and info.get("domain_match") is True
+            ok = token_ok or domain_ok
+            evidence = {"connector": connector.provider, "mode": connector.mode, "token_present": bool(remote), "domain_match": domain_ok}
         else:
             raise ValidationFailed("Unknown method")
     except (BlockedDestination, ConnectorError) as exc:
@@ -136,6 +139,12 @@ def check_verification(db: Session, site: Site, verification: SiteVerification) 
         site.verified_at = utcnow()
         site.verification_method = verification.method
         site.status = "active"
+        from datetime import timedelta
+
+        for sched in db.execute(select(AutomationSchedule).where(AutomationSchedule.site_id == site.id,
+                                                                 AutomationSchedule.enabled.is_(True))).scalars():
+            if sched.next_run_at is None:
+                sched.next_run_at = utcnow() + timedelta(minutes=sched.interval_minutes)
         audit.record(db, tenant_id=site.tenant_id, action="site.verified", actor_type="system", target_type="site", target_id=site.id,
                      site_id=site.id, data={"method": verification.method})
     else:
@@ -154,3 +163,19 @@ def connectors_for(db: Session, site: Site) -> list[Connector]:
 
 
 _ = (asyncio, get_settings)
+
+
+def push_fixture_token(db: Session, site: Site) -> bool:
+    """Demo mode only: hand a pending 'connector' verification token to the local WordPress
+    *fixture* (what a site owner would paste into the plugin settings). Never used for live connectors."""
+    if not get_settings().demo_mode or get_settings().environment == "production":
+        return False
+    v = latest_verification(db, site)
+    if v is None or v.method != "connector" or v.status == "verified":
+        return False
+    try:
+        res = connector_svc.run(safe_fetch(site.base_url.rstrip("/") + "/__fixture/settings", method="POST",
+                                           json_body={"verification_token": v.token}, max_redirects=0, timeout=5))
+        return res.status_code == 200
+    except (BlockedDestination, Exception):  # noqa: BLE001
+        return False

@@ -156,6 +156,8 @@ def list_connectors(site_id: uuid.UUID, ctx: Ctx = Depends(get_ctx)) -> list[Con
              summary="Connect a platform with credentials (WordPress application password, Shopify token, GitHub installation)")
 def connect(site_id: uuid.UUID, body: ConnectorIn, ctx: Ctx = Depends(get_ctx)) -> ConnectorOut:
     site = ctx.site(site_id, "connector:manage")
+    if body.mode == "fixture":
+        site_svc.push_fixture_token(ctx.db, site)
     c = connector_svc.connect(ctx.db, site=site, provider=body.provider, config=body.config, secrets=body.secrets, mode=body.mode)
     audit.record(ctx.db, tenant_id=ctx.tenant.id, action="connector.connected", actor_id=ctx.user.id, actor_label=ctx.user.email,
                  target_type="connector", target_id=c.id, site_id=site.id,

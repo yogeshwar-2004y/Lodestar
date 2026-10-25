@@ -44,5 +44,9 @@
     "openapi-typescript": "7.9.1",
     "tailwindcss": "4.1.13",
     "typescript": "5.9.2"
+  },
+  "overrides": {
+    "motion-dom": "12.23.12",
+    "motion-utils": "12.23.6"
   }
 }

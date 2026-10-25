@@ -79,7 +79,15 @@ def _detail(ctx: Ctx, cs: ChangeSet) -> ChangeSetDetail:
         if connector else None,
         rollback_available=rollback_available,
         rollback_note=note,
+        page=_page_info(db, cs),
     )
+
+
+def _page_info(db, cs: ChangeSet) -> dict[str, Any] | None:  # noqa: ANN001
+    from aseo.models import Page
+
+    p = db.get(Page, cs.page_id) if cs.page_id else None
+    return {"id": str(p.id), "title": p.title, "meta_description": p.meta_description, "h1": p.h1} if p else None
 
 
 @router.post("/change-sets", response_model=ChangeSetDetail, status_code=201,

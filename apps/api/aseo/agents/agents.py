@@ -341,8 +341,15 @@ def copilot(db: Session, site: Site, *, question: str, gateway: Gateway | None =
     known = _known_ids(findings, snaps, queries, history)
 
     def fallback() -> CopilotAnswer:
-        words = {w for w in re.findall(r"[a-z]{4,}", question.lower())}
-        relevant = [f for f in findings if words & set(re.findall(r"[a-z]{4,}", (f["title"] + " " + f["rule"]).lower()))] or findings[:5]
+        generic = {"page", "pages", "which", "what", "site", "website", "there", "have", "does", "should", "with", "about", "issue", "issues", "first"}
+        words = {w.rstrip("s") for w in re.findall(r"[a-z]{4,}", question.lower())} - generic
+
+        def overlap(f: dict[str, Any]) -> int:
+            terms = {w.rstrip("s") for w in re.findall(r"[a-z]{4,}", (f["title"] + " " + f["rule"].replace("_", " ")).lower())}
+            return len(words & terms)
+
+        scored = sorted(((overlap(f), f) for f in findings), key=lambda x: (-x[0], SEV_ORDER[x[1]["severity"]]))
+        relevant = [f for s, f in scored if s > 0] or [f for _, f in scored[:5]]
         lines = [f"- {f['title']} — {f['affected']} affected ({f['severity']}, {f['kind']})" for f in relevant[:8]]
         actions = []
         for f in relevant:

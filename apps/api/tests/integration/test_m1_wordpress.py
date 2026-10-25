@@ -69,6 +69,9 @@ def test_m1_end_to_end(wp_site, wp):
 
     detail = api.get(f"/change-sets/{cs['id']}").json()
     assert detail["status"] == "completed"
+    fixed = api.get(f"/findings/{f['id']}").json()
+    assert fixed["finding"]["affected_count"] == len(urls) - 1
+    assert any(o["url"] == target and o["status"] == "fixed" for o in fixed["occurrences"])
     assert detail["rollback_available"] is True
 
     # audit trail covers the lifecycle
