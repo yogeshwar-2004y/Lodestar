@@ -3,7 +3,7 @@ API := apps/api
 PY := $(API)/.venv/bin/python
 PSQL ?= psql
 
-.PHONY: setup db migrate fixture api web worker seed dev test lint typecheck e2e contracts compose
+.PHONY: setup db migrate fixture api web worker beat seed dev test lint typecheck e2e contracts compose
 
 setup:            ## install Python + Node dependencies
 	python3 -m venv $(API)/.venv && $(API)/.venv/bin/pip install -q -r $(API)/requirements-dev.txt
@@ -23,7 +23,9 @@ api:
 	cd $(API) && .venv/bin/uvicorn aseo.main:app --host 127.0.0.1 --port 8400 --reload
 
 worker:           ## only for TASK_EXECUTION=celery
-	cd $(API) && .venv/bin/celery -A aseo.worker.celery_app worker -B -l info
+	cd $(API) && .venv/bin/celery -A aseo.worker.celery_app worker -l info --pool threads --concurrency 4
+beat:
+	cd $(API) && .venv/bin/celery -A aseo.worker.celery_app beat -l info -s var/celerybeat-schedule
 
 web:
 	cd apps/web && npm run dev

@@ -1,0 +1,98 @@
+# Local stack: `docker compose up --build` then `docker compose exec api python -m aseo.seed`.
+# Uses images that are small and already common (postgres:16-alpine, redis:7-alpine).
+x-api-env: &api-env
+  ENVIRONMENT: development
+  DEMO_MODE: "true"
+  DATABASE_URL: postgresql+psycopg://aseo_owner:aseo_owner_dev@postgres:5432/aseo
+  DATABASE_APP_URL: postgresql+psycopg://aseo_app:aseo_app_dev_password@postgres:5432/aseo
+  REDIS_URL: redis://redis:6379/0
+  TASK_EXECUTION: celery
+  PUBLIC_WEB_URL: http://localhost:3400
+  CORS_ORIGINS: '["http://localhost:3400"]'
+  CRAWLER_ALLOWED_PRIVATE_HOSTS: '["wp-fixture:8481"]'
+  WP_FIXTURE_URL: http://wp-fixture:8481
+  AI_PROVIDER: ${AI_PROVIDER:-deterministic}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  SNAPSHOT_DIR: /app/var/snapshots
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aseo_owner
+      POSTGRES_PASSWORD: aseo_owner_dev
+      POSTGRES_DB: aseo
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/db/init.sql:/docker-entrypoint-initdb.d/01-roles.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aseo_owner -d aseo"]
+      interval: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+
+  migrate:
+    build: ./apps/api
+    environment: *api-env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    build: ./apps/api
+    environment: *api-env
+    ports: ["8400:8400"]
+    volumes: [snapshots:/app/var]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  worker:
+    build: ./apps/api
+    environment: *api-env
+    command: ["celery", "-A", "aseo.worker.celery_app", "worker", "-l", "info", "--pool", "threads", "--concurrency", "4"]
+    volumes: [snapshots:/app/var]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  beat:
+    build: ./apps/api
+    environment: *api-env
+    command: ["celery", "-A", "aseo.worker.celery_app", "beat", "-l", "info", "-s", "/tmp/celerybeat-schedule"]
+    depends_on:
+      redis: { condition: service_healthy }
+
+  # Labelled WordPress companion-plugin TEST FIXTURE (not a real WordPress site).
+  wp-fixture:
+    build: ./apps/api
+    working_dir: /fixture
+    volumes: ["./integrations/wordpress/fixture_server:/fixture:ro"]
+    environment: { WP_FIXTURE_PORT: "8481" }
+    command: ["python", "-c", "import uvicorn,server; uvicorn.run(server.app, host='0.0.0.0', port=8481)"]
+    ports: ["8481:8481"]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args: { API_INTERNAL_URL: "http://api:8400" }
+    environment: { API_INTERNAL_URL: "http://api:8400" }
+    ports: ["3400:3400"]
+    depends_on: [api]
+
+  # Optional S3-compatible storage: `docker compose --profile storage up`
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    profiles: ["storage"]
+    command: server /data --console-address :9001
+    ports: ["9000:9000", "9001:9001"]
+
+volumes:
+  pgdata: {}
+  snapshots: {}

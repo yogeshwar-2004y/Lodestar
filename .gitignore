@@ -15,3 +15,7 @@ playwright-report/
 test-results/
 apps/api/var/
 .DS_Store
+apps/web/test-results/
+apps/web/playwright-report/
+apps/api/var/
+*.tsbuildinfo
